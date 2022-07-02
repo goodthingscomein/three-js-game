@@ -37,13 +37,28 @@
 		/** Create the camera */
 		const fov = 75;
 		const aspect = 2; // the canvas default
-		const near = 0.1;
+		const near = 1;
 		const far = 5000;
 		const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-		camera.position.z = -6;
-		camera.position.y = 4;
 
-		let cameraDistance = 6;
+		let idealHeight = 3;
+		let idealZoom = 7;
+		let idealOffset: THREE.Vector3;
+		let idealLookat: THREE.Vector3;
+
+		function CalculateIdealOffset(objectToFollow: THREE.Mesh<any, any>) {
+			const idealOffset = new THREE.Vector3(0, idealHeight, -idealZoom);
+			idealOffset.applyQuaternion(objectToFollow.quaternion);
+			idealOffset.add(objectToFollow.position);
+			return idealOffset;
+		}
+
+		function CalculateIdealLookat(objectToFollow: THREE.Mesh<any, any>) {
+			const idealLookat = new THREE.Vector3(0, 0, idealHeight / 10);
+			idealLookat.applyQuaternion(objectToFollow.quaternion);
+			idealLookat.add(objectToFollow.position);
+			return idealLookat;
+		}
 
 		/** Create the scene */
 		const scene = new THREE.Scene();
@@ -157,17 +172,26 @@
 
 			/** Rotate the cube */
 			if (pointerLocked && mousePressed.RIGHT) {
+				// Rotate the player
 				cube.rotateY(mouseChange.x / 500);
+
+				// Adjust the Height of the camera
+				idealHeight += mouseChange.y / 200;
+				if (idealHeight < 1) idealHeight = 1;
+				if (idealHeight > 5) idealHeight = 5;
+
+				// Reset mouse changed so that only new mouse movement will move camera
 				mouseChange = { x: 0, y: 0 };
 			}
 
 			/** Move the camera */
-			camera.position.setX(cube.position.x);
-			camera.position.setZ(cube.position.z - cameraDistance);
-			camera.position.setY((4 * cameraDistance) / 7);
+			idealOffset = CalculateIdealOffset(cube);
+			camera.position.copy(idealOffset);
 
 			/** Point the camera at the cube */
-			camera.lookAt(cube.position);
+			idealLookat = CalculateIdealLookat(cube);
+
+			camera.lookAt(idealLookat);
 
 			renderer.render(scene, camera);
 			requestAnimationFrame(render);
@@ -255,9 +279,9 @@
 		// Mouse scrollasa
 		document.addEventListener('wheel', (e) => {
 			e.preventDefault();
-			cameraDistance += e.deltaY / 500;
-			if (cameraDistance > 10) cameraDistance = 10;
-			if (cameraDistance < 4) cameraDistance = 4;
+			idealZoom += e.deltaY / 500;
+			if (idealZoom > 10) idealZoom = 10;
+			if (idealZoom < 3) idealZoom = 3;
 		});
 		// Mouse move
 		document.addEventListener('mousemove', (e) => {
@@ -271,6 +295,9 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Three JS Game - MMORPG</title>
+</svelte:head>
 <svelte:window on:contextmenu={(e) => e.preventDefault()} />
 
 <canvas id="c" bind:this={canvas} />
