@@ -2,30 +2,16 @@
 	import * as THREE from 'three';
 	import { onMount } from 'svelte';
 
+	// Stores
+	import { keysPressed, mousePressed, mouseChange, pointerLocked } from '../stores/controls.stores';
+	import { networkID } from '../stores/player.store';
+	import { allNetworkObjects } from '../stores/allNetworkedObjects.store';
+
 	let canvas: HTMLCanvasElement;
 
 	/**
 	 * Handle the mouse functions for the player / camera
 	 */
-	// Mouse change
-	let mouseChange = { x: 0, y: 0 };
-
-	// Mouse buttons down
-	let mousePressed = {
-		LEFT: false,
-		RIGHT: false,
-		MIDDLE: false,
-	};
-
-	// Keys pressed
-	let keysPressed = {
-		W: false,
-		A: false,
-		S: false,
-		D: false,
-	};
-
-	let pointerLocked = false;
 
 	function main() {
 		if (!canvas) {
@@ -97,26 +83,11 @@
 		const boxGeometry = new THREE.BoxGeometry(1, 2, 1);
 		const planeGeometry = new THREE.PlaneBufferGeometry(100, 100);
 
-		/** Make instances of an object in the scene */
-		function makeInstance(geometry: any, color: THREE.ColorRepresentation, pos: THREE.Vector3) {
-			const material = new THREE.MeshPhongMaterial({ color });
-
-			const object = new THREE.Mesh(geometry, material);
-			scene.add(object);
-
-			object.position.setX(pos.x);
-			object.position.setY(pos.y);
-			object.position.setZ(pos.z);
-
-			return object;
-		}
-
 		/** Make 3 cubes in the scene using the instance function */
 		/** makeInstance returns the cube so we can access it in this array to manipulate */
-		const cube = makeInstance(boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0));
-		makeInstance(boxGeometry, 0xffaa88, new THREE.Vector3(2, 1, 2));
+		$allNetworkObjects.set($networkID, makeInstance(scene, boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0)));
 
-		const plane = makeInstance(planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
+		const plane = makeInstance(scene, planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
 		plane.rotateX(-1.5708);
 
 		/** Create a directional light */
@@ -164,33 +135,36 @@
 				camera.updateProjectionMatrix();
 			}
 
-			/** Move the cube */
-			if (keysPressed.W) cube.translateZ(0.1);
-			if (keysPressed.S) cube.translateZ(-0.1);
-			if (keysPressed.A) cube.translateX(0.1);
-			if (keysPressed.D) cube.translateX(-0.1);
+			const ourPlayer = $allNetworkObjects.get($networkID);
+			if (ourPlayer) {
+				/** Move the player */
+				if ($keysPressed.W) ourPlayer.translateZ(0.1);
+				if ($keysPressed.S) ourPlayer.translateZ(-0.1);
+				if ($keysPressed.A) ourPlayer.translateX(0.1);
+				if ($keysPressed.D) ourPlayer.translateX(-0.1);
 
-			/** Rotate the cube */
-			if (pointerLocked && (mousePressed.RIGHT || mousePressed.MIDDLE)) {
-				// Rotate the player
-				cube.rotateY(mouseChange.x / 600);
+				/** Rotate the player */
+				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE)) {
+					// Rotate the player
+					ourPlayer.rotateY($mouseChange.x / 600);
 
-				// Adjust the Height of the camera
-				idealHeight += mouseChange.y / 150;
-				if (idealHeight < 1) idealHeight = 1;
-				if (idealHeight > 5) idealHeight = 5;
+					// Adjust the Height of the camera
+					idealHeight += $mouseChange.y / 150;
+					if (idealHeight < 1) idealHeight = 1;
+					if (idealHeight > 5) idealHeight = 5;
 
-				// Reset mouse changed so that only new mouse movement will move camera
-				mouseChange = { x: 0, y: 0 };
+					// Reset mouse changed so that only new mouse movement will move camera
+					mouseChange.set({ x: 0, y: 0 });
+				}
+
+				/** Move the camera */
+				idealOffset = CalculateIdealOffset(ourPlayer);
+				camera.position.copy(idealOffset);
+
+				/** Point the camera at the cube */
+				idealLookat = CalculateIdealLookat(ourPlayer);
+				camera.lookAt(idealLookat);
 			}
-
-			/** Move the camera */
-			idealOffset = CalculateIdealOffset(cube);
-			camera.position.copy(idealOffset);
-
-			/** Point the camera at the cube */
-			idealLookat = CalculateIdealLookat(cube);
-			camera.lookAt(idealLookat);
 
 			renderer.render(scene, camera);
 			requestAnimationFrame(render);
@@ -206,19 +180,19 @@
 		document.addEventListener('keydown', (e) => {
 			switch (e.key) {
 				case 'w': {
-					keysPressed.W = true;
+					$keysPressed.W = true;
 					break;
 				}
 				case 's': {
-					keysPressed.S = true;
+					$keysPressed.S = true;
 					break;
 				}
 				case 'a': {
-					keysPressed.A = true;
+					$keysPressed.A = true;
 					break;
 				}
 				case 'd': {
-					keysPressed.D = true;
+					$keysPressed.D = true;
 					break;
 				}
 			}
@@ -227,19 +201,19 @@
 		document.addEventListener('keyup', (e) => {
 			switch (e.key) {
 				case 'w': {
-					if ((!mousePressed.RIGHT || !mousePressed.LEFT) && !mousePressed.MIDDLE) keysPressed.W = false;
+					if ((!$mousePressed.RIGHT || !$mousePressed.LEFT) && !$mousePressed.MIDDLE) $keysPressed.W = false;
 					break;
 				}
 				case 's': {
-					keysPressed.S = false;
+					$keysPressed.S = false;
 					break;
 				}
 				case 'a': {
-					keysPressed.A = false;
+					$keysPressed.A = false;
 					break;
 				}
 				case 'd': {
-					keysPressed.D = false;
+					$keysPressed.D = false;
 					break;
 				}
 			}
@@ -252,42 +226,38 @@
 		// Mouse down (0 - left, 1 - middle, 2 - right)
 		document.addEventListener('mousedown', (e) => {
 			if (e.button === 0) {
-				mousePressed.LEFT = true;
+				$mousePressed.LEFT = true;
 				lockPointer();
-				if (mousePressed.RIGHT) keysPressed.W = true;
+				if ($mousePressed.RIGHT) $keysPressed.W = true;
 			}
 			if (e.button === 1) {
-				mousePressed.MIDDLE = true;
+				$mousePressed.MIDDLE = true;
 				lockPointer();
-				keysPressed.W = true;
+				$keysPressed.W = true;
 			}
 			if (e.button === 2) {
-				mousePressed.RIGHT = true;
+				$mousePressed.RIGHT = true;
 				lockPointer();
-				if (mousePressed.LEFT) keysPressed.W = true;
+				if ($mousePressed.LEFT) $keysPressed.W = true;
 			}
 		});
 		// Mouse up
 		document.addEventListener('mouseup', (e) => {
 			// Update the mouse pressed obj
-			if (e.button === 0) mousePressed.LEFT = false;
-			if (e.button === 1) mousePressed.MIDDLE = false;
-			if (e.button === 2) mousePressed.RIGHT = false;
+			if (e.button === 0) $mousePressed.LEFT = false;
+			if (e.button === 1) $mousePressed.MIDDLE = false;
+			if (e.button === 2) $mousePressed.RIGHT = false;
 
 			// Cancel mouse run
-			const lrMouseRun = mousePressed.LEFT && mousePressed.RIGHT;
-			if (!lrMouseRun && !mousePressed.MIDDLE) keysPressed.W = false;
+			const lrMouseRun = $mousePressed.LEFT && $mousePressed.RIGHT;
+			if (!lrMouseRun && !$mousePressed.MIDDLE) $keysPressed.W = false;
 
 			// Exit pointer lock
-			if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) unlockPointer();
+			if (!($mousePressed.LEFT || $mousePressed.MIDDLE || $mousePressed.RIGHT)) unlockPointer();
 		});
 		// Pointer Locked
 		document.addEventListener('pointerlockchange', () => {
-			if (document.pointerLockElement === canvas) {
-				pointerLocked = true;
-			} else {
-				pointerLocked = false;
-			}
+			document.pointerLockElement === canvas ? pointerLocked.set(true) : pointerLocked.set(false);
 		});
 		// Pointer Lock timer
 		let pointerLockTimer: NodeJS.Timeout;
@@ -295,9 +265,9 @@
 			// Clear any old timers, and start a new timer
 			clearTimeout(pointerLockTimer);
 			pointerLockTimer = setTimeout(() => {
-				if (pointerLocked) return;
-				if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) return;
-				canvas.requestPointerLock();
+				if ($pointerLocked) return;
+				if (!($mousePressed.LEFT || $mousePressed.MIDDLE || $mousePressed.RIGHT)) return;
+				if (canvas) canvas.requestPointerLock();
 			}, 30);
 		}
 		function unlockPointer() {
@@ -312,9 +282,21 @@
 			if (idealZoom < 3) idealZoom = 3;
 		});
 		// Mouse move
-		document.addEventListener('mousemove', (e) => {
-			mouseChange = { x: e.movementX, y: e.movementY };
-		});
+		document.addEventListener('mousemove', (e) => mouseChange.set({ x: e.movementX, y: e.movementY }));
+	}
+
+	/** Make instances of an object in the scene */
+	function makeInstance(scene: THREE.Scene, geometry: any, color: THREE.ColorRepresentation, pos: THREE.Vector3) {
+		const material = new THREE.MeshPhongMaterial({ color });
+
+		const object = new THREE.Mesh(geometry, material);
+		scene.add(object);
+
+		object.position.setX(pos.x);
+		object.position.setY(pos.y);
+		object.position.setZ(pos.z);
+
+		return object;
 	}
 
 	/** Start the THREE JS loop / initialisation once the canvas has been mounted */

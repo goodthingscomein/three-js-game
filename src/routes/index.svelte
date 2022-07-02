@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Components
-	import Canvas from '$lib/Canvas.svelte';
+	import Game from '$lib/Game.svelte';
 	import Ui from '$lib/UI/UI.svelte';
 
 	// State
@@ -11,5 +11,5 @@
 	{#if showingUI}
 		<Ui />
 	{/if}
-	<Canvas />
+	<Game />
 </div>
