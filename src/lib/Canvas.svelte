@@ -14,53 +14,86 @@
 		const fov = 75;
 		const aspect = 2; // the canvas default
 		const near = 0.1;
-		const far = 5;
+		const far = 10000;
 		const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-		camera.position.z = 2;
+		camera.position.z = 5;
+		camera.position.y = 2;
+		camera.rotateX(-0.25);
 
 		/** Create the scene */
 		const scene = new THREE.Scene();
 
+		/** Create an array of all of the paths of the Skybox PNGs */
+		function createPathStrings(filename: string) {
+			const basePath = '../assets/skybox/textures/';
+			const baseFilename = basePath + filename;
+			const fileType = '.png';
+			const sides = ['ft', 'bk', 'up', 'dn', 'rt', 'lf'];
+			const pathStings = sides.map((side) => {
+				return baseFilename + '_' + side + fileType;
+			});
+
+			return pathStings;
+		}
+
+		/** Create array of all Skybox textures from PNGs */
+		function createMaterialArray(filename: string) {
+			const skyboxImagepaths = createPathStrings(filename);
+			const materialArray = skyboxImagepaths.map((image) => {
+				let texture = new THREE.TextureLoader().load(image);
+				return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
+			});
+
+			return materialArray;
+		}
+
+		/** Create the skybox */
+		const skyboxMaterialArray = createMaterialArray('skybox');
+		const skyboxGeometry = new THREE.BoxGeometry(2000, 2000, 2000);
+		const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterialArray);
+		scene.add(skybox);
+
 		/** Create a new box geometry */
-		const boxWidth = 1;
-		const boxHeight = 1;
-		const boxDepth = 1;
-		const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
+		const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+		const planeGeometry = new THREE.PlaneBufferGeometry(100, 100);
 
-		/** Create a new material */
-		const material = new THREE.MeshPhongMaterial({ color: 0x44aa88 });
-
-		/** Create a box --- Create a new mesh with using the box geometry + material  */
-		const cube = new THREE.Mesh(geometry, material);
-
-		/** Function to make instances of an object in the scene */
-		function makeInstance(geometry: any, color: THREE.ColorRepresentation, x: number) {
+		/** Make instances of an object in the scene */
+		function makeInstance(geometry: any, color: THREE.ColorRepresentation, pos: THREE.Vector3) {
 			const material = new THREE.MeshPhongMaterial({ color });
 
-			const cube = new THREE.Mesh(geometry, material);
-			scene.add(cube);
+			const object = new THREE.Mesh(geometry, material);
+			scene.add(object);
 
-			cube.position.x = x;
+			object.position.setX(pos.x);
+			object.position.setY(pos.y);
+			object.position.setZ(pos.z);
 
-			return cube;
+			return object;
 		}
 
 		/** Make 3 cubes in the scene using the instance function */
 		/** makeInstance returns the cube so we can access it in this array to manipulate */
 		const cubes = [
-			makeInstance(geometry, 0x44aa88, 0),
-			makeInstance(geometry, 0x8844aa, -2),
-			makeInstance(geometry, 0xaa8844, 2),
+			makeInstance(boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0)),
+			makeInstance(boxGeometry, 0x8844aa, new THREE.Vector3(-2, 1, 0)),
+			makeInstance(boxGeometry, 0xaa8844, new THREE.Vector3(2, 1, 0)),
 		];
 
-		/** Create a directional light */
-		const color = 0xffffff;
-		const intensity = 1;
-		const light = new THREE.DirectionalLight(color, intensity);
-		light.position.set(-1, 2, 4);
+		const plane = makeInstance(planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
+		plane.rotateX(-1.5708);
 
-		/** Add the light to the scene */
-		scene.add(light);
+		/** Create a directional light */
+		const color: THREE.ColorRepresentation = 0xffffff;
+		const intensity: number = 0.6;
+		const directionalLight = new THREE.DirectionalLight(color, intensity);
+		directionalLight.position.set(-1, 2, 4);
+
+		/** Create an ambient light */
+		const ambientLight = new THREE.AmbientLight(color, 0.3);
+
+		/** Add the lights to the scene */
+		scene.add(directionalLight);
+		scene.add(ambientLight);
 
 		/** Checks if the renderer output resolution */
 		function resizeRendererToDisplaySize(renderer: THREE.WebGLRenderer) {
@@ -91,13 +124,12 @@
 
 			cubes.forEach((cube, ndx) => {
 				const speed = 1 + ndx * 0.1;
-				const rot = time * speed;
+				const rot = (time * speed) / 10;
 				cube.rotation.x = rot;
 				cube.rotation.y = rot;
 			});
 
 			renderer.render(scene, camera);
-
 			requestAnimationFrame(render);
 		}
 		requestAnimationFrame(render);
