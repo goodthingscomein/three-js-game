@@ -253,17 +253,17 @@
 		document.addEventListener('mousedown', (e) => {
 			if (e.button === 0) {
 				mousePressed.LEFT = true;
-				if (!pointerLocked) canvas.requestPointerLock();
+				lockPointer();
 				if (mousePressed.RIGHT) keysPressed.W = true;
 			}
 			if (e.button === 1) {
 				mousePressed.MIDDLE = true;
-				if (!pointerLocked) canvas.requestPointerLock();
+				lockPointer();
 				keysPressed.W = true;
 			}
 			if (e.button === 2) {
 				mousePressed.RIGHT = true;
-				if (!pointerLocked) canvas.requestPointerLock();
+				lockPointer();
 				if (mousePressed.LEFT) keysPressed.W = true;
 			}
 		});
@@ -279,7 +279,7 @@
 			if (!lrMouseRun && !mousePressed.MIDDLE) keysPressed.W = false;
 
 			// Exit pointer lock
-			if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) document.exitPointerLock();
+			if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) unlockPointer();
 		});
 		// Pointer Locked
 		document.addEventListener('pointerlockchange', () => {
@@ -289,6 +289,21 @@
 				pointerLocked = false;
 			}
 		});
+		// Pointer Lock timer
+		let pointerLockTimer: NodeJS.Timeout;
+		function lockPointer() {
+			// Clear any old timers, and start a new timer
+			clearTimeout(pointerLockTimer);
+			pointerLockTimer = setTimeout(() => {
+				if (pointerLocked) return;
+				if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) return;
+				canvas.requestPointerLock();
+			}, 30);
+		}
+		function unlockPointer() {
+			clearTimeout(pointerLockTimer);
+			document.exitPointerLock();
+		}
 		// Mouse scrollasa
 		document.addEventListener('wheel', (e) => {
 			e.preventDefault();
