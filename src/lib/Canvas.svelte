@@ -2,8 +2,32 @@
 	import * as THREE from 'three';
 	import { onMount } from 'svelte';
 
+	let canvas: HTMLCanvasElement;
+
+	/**
+	 * Handle the mouse functions for the player / camera
+	 */
+	// Mouse change
+	let mouseChange = { x: 0, y: 0 };
+
+	// Mouse buttons down
+	let mousePressed = {
+		LEFT: false,
+		RIGHT: false,
+		MIDDLE: false,
+	};
+
+	// Keys pressed
+	let keysPressed = {
+		W: false,
+		A: false,
+		S: false,
+		D: false,
+	};
+
+	let pointerLocked = false;
+
 	function main() {
-		const canvas = document.querySelector('#c');
 		if (!canvas) {
 			console.log('Could not find the canvas');
 			return;
@@ -14,11 +38,12 @@
 		const fov = 75;
 		const aspect = 2; // the canvas default
 		const near = 0.1;
-		const far = 10000;
+		const far = 5000;
 		const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-		camera.position.z = 5;
-		camera.position.y = 2;
-		camera.rotateX(-0.25);
+		camera.position.z = -6;
+		camera.position.y = 4;
+
+		let cameraDistance = 6;
 
 		/** Create the scene */
 		const scene = new THREE.Scene();
@@ -73,23 +98,22 @@
 
 		/** Make 3 cubes in the scene using the instance function */
 		/** makeInstance returns the cube so we can access it in this array to manipulate */
-		const cubes = [
-			makeInstance(boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0)),
-			makeInstance(boxGeometry, 0x8844aa, new THREE.Vector3(-2, 1, 0)),
-			makeInstance(boxGeometry, 0xaa8844, new THREE.Vector3(2, 1, 0)),
-		];
+		const cube = makeInstance(boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0));
+		makeInstance(boxGeometry, 0xffaa88, new THREE.Vector3(2, 1, 2));
 
 		const plane = makeInstance(planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
 		plane.rotateX(-1.5708);
 
 		/** Create a directional light */
-		const color: THREE.ColorRepresentation = 0xffffff;
-		const intensity: number = 0.6;
-		const directionalLight = new THREE.DirectionalLight(color, intensity);
+		const directionalLightColor: THREE.ColorRepresentation = 0xffffff;
+		const directionalLightIntensity = 0.4;
+		const directionalLight = new THREE.DirectionalLight(directionalLightColor, directionalLightIntensity);
 		directionalLight.position.set(-1, 2, 4);
 
 		/** Create an ambient light */
-		const ambientLight = new THREE.AmbientLight(color, 0.3);
+		const ambientLightColor: THREE.ColorRepresentation = 0xffffff;
+		const ambientLightIntensity = 0.6;
+		const ambientLight = new THREE.AmbientLight(ambientLightColor, ambientLightIntensity);
 
 		/** Add the lights to the scene */
 		scene.add(directionalLight);
@@ -111,7 +135,10 @@
 		/** Tell THREE js to render the scene */
 		renderer.render(scene, camera);
 
-		/** Setup THREE JS render loop */
+		/**
+		 * THREE JS render loop
+		 * This will also act as the game loop (FOR NOW)
+		 */
 		function render(time: number) {
 			time *= 0.001; // convert time to seconds
 
@@ -122,17 +149,120 @@
 				camera.updateProjectionMatrix();
 			}
 
-			cubes.forEach((cube, ndx) => {
-				const speed = 1 + ndx * 0.1;
-				const rot = (time * speed) / 10;
-				cube.rotation.x = rot;
-				cube.rotation.y = rot;
-			});
+			/** Move the cube */
+			if (keysPressed.W) cube.translateZ(0.1);
+			if (keysPressed.S) cube.translateZ(-0.1);
+			if (keysPressed.A) cube.translateX(0.1);
+			if (keysPressed.D) cube.translateX(-0.1);
+
+			/** Rotate the cube */
+			if (pointerLocked && mousePressed.RIGHT) {
+				cube.rotateY(mouseChange.x / 500);
+				mouseChange = { x: 0, y: 0 };
+			}
+
+			/** Move the camera */
+			camera.position.setX(cube.position.x);
+			camera.position.setZ(cube.position.z - cameraDistance);
+			camera.position.setY((4 * cameraDistance) / 7);
+
+			/** Point the camera at the cube */
+			camera.lookAt(cube.position);
 
 			renderer.render(scene, camera);
 			requestAnimationFrame(render);
 		}
 		requestAnimationFrame(render);
+
+		/**
+		 * //////////////////////////////
+		 * Setup all event listeners
+		 * //////////////////////////////
+		 */
+		// Key down
+		document.addEventListener('keydown', (e) => {
+			switch (e.key) {
+				case 'w': {
+					keysPressed.W = true;
+					break;
+				}
+				case 's': {
+					keysPressed.S = true;
+					break;
+				}
+				case 'a': {
+					keysPressed.A = true;
+					break;
+				}
+				case 'd': {
+					keysPressed.D = true;
+					break;
+				}
+			}
+		});
+		// Key up
+		document.addEventListener('keyup', (e) => {
+			switch (e.key) {
+				case 'w': {
+					keysPressed.W = false;
+					break;
+				}
+				case 's': {
+					keysPressed.S = false;
+					break;
+				}
+				case 'a': {
+					keysPressed.A = false;
+					break;
+				}
+				case 'd': {
+					keysPressed.D = false;
+					break;
+				}
+			}
+		});
+
+		/** Setup Pointer Lock */
+		canvas.requestPointerLock = canvas.requestPointerLock;
+		document.exitPointerLock = document.exitPointerLock;
+
+		// Mouse down (0 - left, 1 - middle, 2 - right)
+		document.addEventListener('mousedown', (e) => {
+			if (e.button === 0) mousePressed.LEFT = true;
+			if (e.button === 1) mousePressed.MIDDLE = true;
+			if (e.button === 2) {
+				mousePressed.RIGHT = true;
+				canvas.requestPointerLock();
+			}
+		});
+		// Mouse up
+		document.addEventListener('mouseup', (e) => {
+			if (e.button === 0) mousePressed.LEFT = false;
+			if (e.button === 1) mousePressed.MIDDLE = false;
+			if (e.button === 2) {
+				mousePressed.RIGHT = false;
+				document.exitPointerLock();
+			}
+		});
+		// Pointer Locked
+		document.addEventListener('pointerlockchange', () => {
+			if (document.pointerLockElement === canvas) {
+				pointerLocked = true;
+			} else {
+				pointerLocked = false;
+			}
+		});
+		// Mouse scrollasa
+		document.addEventListener('wheel', (e) => {
+			e.preventDefault();
+			cameraDistance += e.deltaY / 500;
+			if (cameraDistance > 10) cameraDistance = 10;
+			if (cameraDistance < 4) cameraDistance = 4;
+		});
+		// Mouse move
+		document.addEventListener('mousemove', (e) => {
+			mouseChange = { x: e.movementX, y: e.movementY };
+		});
 	}
 
 	/** Start the THREE JS loop / initialisation once the canvas has been mounted */
@@ -141,7 +271,9 @@
 	});
 </script>
 
-<canvas id="c" />
+<svelte:window on:contextmenu={(e) => e.preventDefault()} />
+
+<canvas id="c" bind:this={canvas} />
 
 <style>
 	#c {
