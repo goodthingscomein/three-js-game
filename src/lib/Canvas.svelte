@@ -62,11 +62,32 @@
 		/** Add the light to the scene */
 		scene.add(light);
 
+		/** Checks if the renderer output resolution */
+		function resizeRendererToDisplaySize(renderer: THREE.WebGLRenderer) {
+			const canvas = renderer.domElement;
+			const pixelRatio = window.devicePixelRatio;
+			const width = (canvas.clientWidth * pixelRatio) | 0;
+			const height = (canvas.clientHeight * pixelRatio) | 0;
+			const needResize = canvas.width !== width || canvas.height !== height;
+			if (needResize) {
+				renderer.setSize(width, height, false);
+			}
+			return needResize;
+		}
+
 		/** Tell THREE js to render the scene */
 		renderer.render(scene, camera);
 
+		/** Setup THREE JS render loop */
 		function render(time: number) {
 			time *= 0.001; // convert time to seconds
+
+			/** Updates the resolution of the renderer to match the size of the canvas */
+			if (resizeRendererToDisplaySize(renderer)) {
+				const canvas = renderer.domElement;
+				camera.aspect = canvas.clientWidth / canvas.clientHeight;
+				camera.updateProjectionMatrix();
+			}
 
 			cubes.forEach((cube, ndx) => {
 				const speed = 1 + ndx * 0.1;
@@ -88,4 +109,12 @@
 	});
 </script>
 
-<canvas id="c" width="1280" height="720" />
+<canvas id="c" />
+
+<style>
+	#c {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+</style>
