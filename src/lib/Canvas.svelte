@@ -94,7 +94,7 @@
 		scene.add(skybox);
 
 		/** Create a new box geometry */
-		const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+		const boxGeometry = new THREE.BoxGeometry(1, 2, 1);
 		const planeGeometry = new THREE.PlaneBufferGeometry(100, 100);
 
 		/** Make instances of an object in the scene */
@@ -171,12 +171,12 @@
 			if (keysPressed.D) cube.translateX(-0.1);
 
 			/** Rotate the cube */
-			if (pointerLocked && mousePressed.RIGHT) {
+			if (pointerLocked && (mousePressed.RIGHT || mousePressed.MIDDLE)) {
 				// Rotate the player
-				cube.rotateY(mouseChange.x / 500);
+				cube.rotateY(mouseChange.x / 600);
 
 				// Adjust the Height of the camera
-				idealHeight += mouseChange.y / 200;
+				idealHeight += mouseChange.y / 150;
 				if (idealHeight < 1) idealHeight = 1;
 				if (idealHeight > 5) idealHeight = 5;
 
@@ -190,7 +190,6 @@
 
 			/** Point the camera at the cube */
 			idealLookat = CalculateIdealLookat(cube);
-
 			camera.lookAt(idealLookat);
 
 			renderer.render(scene, camera);
@@ -228,7 +227,7 @@
 		document.addEventListener('keyup', (e) => {
 			switch (e.key) {
 				case 'w': {
-					keysPressed.W = false;
+					if ((!mousePressed.RIGHT || !mousePressed.LEFT) && !mousePressed.MIDDLE) keysPressed.W = false;
 					break;
 				}
 				case 's': {
@@ -252,21 +251,35 @@
 
 		// Mouse down (0 - left, 1 - middle, 2 - right)
 		document.addEventListener('mousedown', (e) => {
-			if (e.button === 0) mousePressed.LEFT = true;
-			if (e.button === 1) mousePressed.MIDDLE = true;
+			if (e.button === 0) {
+				mousePressed.LEFT = true;
+				if (!pointerLocked) canvas.requestPointerLock();
+				if (mousePressed.RIGHT) keysPressed.W = true;
+			}
+			if (e.button === 1) {
+				mousePressed.MIDDLE = true;
+				if (!pointerLocked) canvas.requestPointerLock();
+				keysPressed.W = true;
+			}
 			if (e.button === 2) {
 				mousePressed.RIGHT = true;
-				canvas.requestPointerLock();
+				if (!pointerLocked) canvas.requestPointerLock();
+				if (mousePressed.LEFT) keysPressed.W = true;
 			}
 		});
 		// Mouse up
 		document.addEventListener('mouseup', (e) => {
+			// Update the mouse pressed obj
 			if (e.button === 0) mousePressed.LEFT = false;
 			if (e.button === 1) mousePressed.MIDDLE = false;
-			if (e.button === 2) {
-				mousePressed.RIGHT = false;
-				document.exitPointerLock();
-			}
+			if (e.button === 2) mousePressed.RIGHT = false;
+
+			// Cancel mouse run
+			const lrMouseRun = mousePressed.LEFT && mousePressed.RIGHT;
+			if (!lrMouseRun && !mousePressed.MIDDLE) keysPressed.W = false;
+
+			// Exit pointer lock
+			if (!(mousePressed.LEFT || mousePressed.MIDDLE || mousePressed.RIGHT)) document.exitPointerLock();
 		});
 		// Pointer Locked
 		document.addEventListener('pointerlockchange', () => {
