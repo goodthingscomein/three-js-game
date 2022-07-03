@@ -1,11 +1,12 @@
 <script lang="ts" type="module">
 	import * as THREE from 'three';
-	import { onMount } from 'svelte';
 
 	// Stores
 	import { keysPressed, mousePressed, mouseChange, pointerLocked } from '../stores/controls.stores';
-	import { networkID } from '../stores/player.store';
-	import { allNetworkObjects } from '../stores/allNetworkedObjects.store';
+	import { ourPlayer } from '../stores/player.store';
+	import { networkInstanceMap, networkObjectsToSpawn } from '../stores/networkInstanceMap.store';
+	import { connect } from '../stores/socket.store'; // Needed to connect to the server
+	import { onMount } from 'svelte';
 
 	let canvas: HTMLCanvasElement;
 
@@ -83,9 +84,11 @@
 		const boxGeometry = new THREE.BoxGeometry(1, 2, 1);
 		const planeGeometry = new THREE.PlaneBufferGeometry(100, 100);
 
-		/** Make 3 cubes in the scene using the instance function */
-		/** makeInstance returns the cube so we can access it in this array to manipulate */
-		$allNetworkObjects.set($networkID, makeInstance(scene, boxGeometry, 0x44aa88, new THREE.Vector3(0, 1, 0)));
+		/** Create our player */
+		$networkInstanceMap.set($ourPlayer.id, {
+			...$ourPlayer,
+			mesh: makeInstance(scene, boxGeometry, $ourPlayer.color, new THREE.Vector3(0, 1, 0)),
+		});
 
 		const plane = makeInstance(scene, planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
 		plane.rotateX(-1.5708);
@@ -135,18 +138,19 @@
 				camera.updateProjectionMatrix();
 			}
 
-			const ourPlayer = $allNetworkObjects.get($networkID);
-			if (ourPlayer) {
+			/** Handle the movement of our player */
+			const ourPlayerNetworkInstance = $networkInstanceMap.get($ourPlayer.id);
+			if (ourPlayerNetworkInstance && ourPlayerNetworkInstance.mesh) {
 				/** Move the player */
-				if ($keysPressed.W) ourPlayer.translateZ(0.1);
-				if ($keysPressed.S) ourPlayer.translateZ(-0.1);
-				if ($keysPressed.A) ourPlayer.translateX(0.1);
-				if ($keysPressed.D) ourPlayer.translateX(-0.1);
+				if ($keysPressed.W) ourPlayerNetworkInstance.mesh.translateZ(0.1);
+				if ($keysPressed.S) ourPlayerNetworkInstance.mesh.translateZ(-0.1);
+				if ($keysPressed.A) ourPlayerNetworkInstance.mesh.translateX(0.1);
+				if ($keysPressed.D) ourPlayerNetworkInstance.mesh.translateX(-0.1);
 
 				/** Rotate the player */
 				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE)) {
 					// Rotate the player
-					ourPlayer.rotateY($mouseChange.x / 600);
+					ourPlayerNetworkInstance.mesh.rotateY($mouseChange.x / 600);
 
 					// Adjust the Height of the camera
 					idealHeight += $mouseChange.y / 150;
@@ -158,12 +162,26 @@
 				}
 
 				/** Move the camera */
-				idealOffset = CalculateIdealOffset(ourPlayer);
+				idealOffset = CalculateIdealOffset(ourPlayerNetworkInstance.mesh);
 				camera.position.copy(idealOffset);
 
 				/** Point the camera at the cube */
-				idealLookat = CalculateIdealLookat(ourPlayer);
+				idealLookat = CalculateIdealLookat(ourPlayerNetworkInstance.mesh);
 				camera.lookAt(idealLookat);
+			}
+
+			/** Check to see if we need to spawn in other players */
+			if ($networkObjectsToSpawn.length) {
+				for (let i = 0; i < $networkObjectsToSpawn.length; i++) {
+					if ($networkObjectsToSpawn[i] === $ourPlayer.id) continue;
+					// Spawn in the new player
+					const newOtherPlayer = $networkInstanceMap.get($networkObjectsToSpawn[i]);
+					if (newOtherPlayer) {
+						console.log('Creating other players mesh');
+						newOtherPlayer.mesh = makeInstance(scene, boxGeometry, newOtherPlayer.color, new THREE.Vector3(0, 1, 0));
+					}
+				}
+				networkObjectsToSpawn.clear();
 			}
 
 			renderer.render(scene, camera);
@@ -299,10 +317,13 @@
 		return object;
 	}
 
-	/** Start the THREE JS loop / initialisation once the canvas has been mounted */
+	/** Connect to socket io */
 	onMount(() => {
-		main();
+		connect();
 	});
+
+	/** Socket will get the player details and will create the player */
+	$: if ($ourPlayer) main();
 </script>
 
 <svelte:head>

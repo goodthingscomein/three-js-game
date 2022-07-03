@@ -1,3 +1,11 @@
 import { writable } from 'svelte/store';
+import type { ColorRepresentation, Vector3 } from 'three';
 
-export const networkID = writable<number>(1);
+type Player = {
+	id: number;
+	color: ColorRepresentation;
+	position: Vector3;
+	rotationY: number;
+};
+
+export const ourPlayer = writable<Player>();
