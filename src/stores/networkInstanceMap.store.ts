@@ -1,13 +1,14 @@
 import { writable } from 'svelte/store';
-import type { Mesh, ColorRepresentation, Vector3 } from 'three';
+import type { Mesh, ColorRepresentation, Vector3, Euler } from 'three';
 
 type NetworkObject = {
 	color: ColorRepresentation;
 	position: Vector3;
-	rotationY: number;
+	rotation: Euler;
 	mesh: Mesh | undefined;
 };
 
+/** Stores the data of all network objects */
 function createNetworkInstanceMap() {
 	const { subscribe, update } = writable<Map<number, NetworkObject>>(new Map<number, NetworkObject>());
 
@@ -22,6 +23,7 @@ function createNetworkInstanceMap() {
 }
 export const networkInstanceMap = createNetworkInstanceMap();
 
+/** Handles the spawning of new network objects */
 function createNetworkObjectsToSpawn() {
 	const { subscribe, set, update } = writable<number[]>([]);
 

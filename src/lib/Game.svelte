@@ -5,7 +5,7 @@
 	import { keysPressed, mousePressed, mouseChange, pointerLocked } from '../stores/controls.stores';
 	import { ourPlayer } from '../stores/player.store';
 	import { networkInstanceMap, networkObjectsToSpawn } from '../stores/networkInstanceMap.store';
-	import { connect } from '../stores/socket.store'; // Needed to connect to the server
+	import { connect, sendTransform } from '../stores/socket.store'; // Needed to connect to the server
 	import { onMount } from 'svelte';
 
 	let canvas: HTMLCanvasElement;
@@ -141,6 +141,12 @@
 			/** Handle the movement of our player */
 			const ourPlayerNetworkInstance = $networkInstanceMap.get($ourPlayer.id);
 			if (ourPlayerNetworkInstance && ourPlayerNetworkInstance.mesh) {
+				/** Calculate if the player has moved - set the flag to send message to server*/
+				let playerMoved = false;
+				if (($keysPressed.W && !$keysPressed.S) || (!$keysPressed.W && $keysPressed.S)) playerMoved = true;
+				if (($keysPressed.A && !$keysPressed.D) || (!$keysPressed.A && $keysPressed.D)) playerMoved = true;
+				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE) && $mouseChange.x) playerMoved = true;
+
 				/** Move the player */
 				if ($keysPressed.W) ourPlayerNetworkInstance.mesh.translateZ(0.1);
 				if ($keysPressed.S) ourPlayerNetworkInstance.mesh.translateZ(-0.1);
@@ -160,6 +166,9 @@
 					// Reset mouse changed so that only new mouse movement will move camera
 					mouseChange.set({ x: 0, y: 0 });
 				}
+
+				/** Tell the server our players new transform */
+				if (playerMoved) sendTransform(ourPlayerNetworkInstance.mesh.position, ourPlayerNetworkInstance.mesh.rotation);
 
 				/** Move the camera */
 				idealOffset = CalculateIdealOffset(ourPlayerNetworkInstance.mesh);
