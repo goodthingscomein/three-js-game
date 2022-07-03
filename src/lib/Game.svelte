@@ -10,9 +10,11 @@
 
 	let canvas: HTMLCanvasElement;
 
-	/**
-	 * Handle the mouse functions for the player / camera
-	 */
+	/** Handle jump + gravity */
+	let onGround = true;
+	const gravity = 6;
+	const jumpStength = 0.4;
+	let fallSpeed = 0;
 
 	function main() {
 		if (!canvas) {
@@ -87,11 +89,16 @@
 		/** Create our player */
 		$networkInstanceMap.set($ourPlayer.id, {
 			...$ourPlayer,
-			mesh: makeInstance(scene, boxGeometry, $ourPlayer.color, new THREE.Vector3(0, 1, 0)),
+			mesh: makeInstance(scene, boxGeometry, $ourPlayer.color, $ourPlayer.position, $ourPlayer.rotation),
 		});
 
-		const plane = makeInstance(scene, planeGeometry, 0xffffff, new THREE.Vector3(0, 0, 0));
-		plane.rotateX(-1.5708);
+		const plane = makeInstance(
+			scene,
+			planeGeometry,
+			0xffffff,
+			new THREE.Vector3(0, 0, 0),
+			new THREE.Euler(-1.5708, 0, 0)
+		);
 
 		/** Create a directional light */
 		const directionalLightColor: THREE.ColorRepresentation = 0xffffff;
@@ -126,7 +133,7 @@
 
 		/**
 		 * THREE JS render loop
-		 * This will also act as the game loop (FOR NOW)
+		 * This will also act as the game loop
 		 */
 		function render(time: number) {
 			time *= 0.001; // convert time to seconds
@@ -141,21 +148,41 @@
 			/** Handle the movement of our player */
 			const ourPlayerNetworkInstance = $networkInstanceMap.get($ourPlayer.id);
 			if (ourPlayerNetworkInstance && ourPlayerNetworkInstance.mesh) {
+				/** First update if the player is on the ground - clamp to the ground if needed */
+				ourPlayerNetworkInstance.mesh.translateY(fallSpeed);
+
+				if (ourPlayerNetworkInstance.mesh.position.y <= 1) {
+					ourPlayerNetworkInstance.mesh.position.setY(1);
+					onGround = true;
+					fallSpeed = 0;
+				} else {
+					fallSpeed -= gravity / 400;
+					onGround = false;
+				}
+
 				/** Calculate if the player has moved - set the flag to send message to server*/
 				let playerMoved = false;
-				if (($keysPressed.W && !$keysPressed.S) || (!$keysPressed.W && $keysPressed.S)) playerMoved = true;
-				if (($keysPressed.A && !$keysPressed.D) || (!$keysPressed.A && $keysPressed.D)) playerMoved = true;
-				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE) && $mouseChange.x) playerMoved = true;
+				if (($keysPressed.W && !$keysPressed.S) || (!$keysPressed.W && $keysPressed.S)) playerMoved = true; // Check move front back
+				if (($keysPressed.A && !$keysPressed.D) || (!$keysPressed.A && $keysPressed.D)) playerMoved = true; // Check move left right
+				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE) && $mouseChange.x) playerMoved = true; // Check rotating
+				if (!onGround) playerMoved = true; // Check falling
 
-				/** Move the player */
+				/** Move */
 				if ($keysPressed.W) ourPlayerNetworkInstance.mesh.translateZ(0.1);
 				if ($keysPressed.S) ourPlayerNetworkInstance.mesh.translateZ(-0.1);
 				if ($keysPressed.A) ourPlayerNetworkInstance.mesh.translateX(0.1);
 				if ($keysPressed.D) ourPlayerNetworkInstance.mesh.translateX(-0.1);
 
-				/** Rotate the player */
+				/** Jump */
+				if ($keysPressed.SPACE && onGround) {
+					console.log('jump');
+					fallSpeed += jumpStength;
+					ourPlayerNetworkInstance.mesh.translateY(fallSpeed);
+				}
+
+				/** Rotate */
 				if ($pointerLocked && ($mousePressed.RIGHT || $mousePressed.MIDDLE)) {
-					// Rotate the player
+					// Rotate the player object
 					ourPlayerNetworkInstance.mesh.rotateY($mouseChange.x / 600);
 
 					// Adjust the Height of the camera
@@ -187,7 +214,13 @@
 					const newOtherPlayer = $networkInstanceMap.get($networkObjectsToSpawn[i]);
 					if (newOtherPlayer) {
 						console.log('Creating other players mesh');
-						newOtherPlayer.mesh = makeInstance(scene, boxGeometry, newOtherPlayer.color, new THREE.Vector3(0, 1, 0));
+						newOtherPlayer.mesh = makeInstance(
+							scene,
+							boxGeometry,
+							newOtherPlayer.color,
+							newOtherPlayer.position,
+							newOtherPlayer.rotation
+						);
 					}
 				}
 				networkObjectsToSpawn.clear();
@@ -222,6 +255,10 @@
 					$keysPressed.D = true;
 					break;
 				}
+				case ' ': {
+					$keysPressed.SPACE = true;
+					break;
+				}
 			}
 		});
 		// Key up
@@ -241,6 +278,10 @@
 				}
 				case 'd': {
 					$keysPressed.D = false;
+					break;
+				}
+				case ' ': {
+					$keysPressed.SPACE = false;
 					break;
 				}
 			}
@@ -313,15 +354,20 @@
 	}
 
 	/** Make instances of an object in the scene */
-	function makeInstance(scene: THREE.Scene, geometry: any, color: THREE.ColorRepresentation, pos: THREE.Vector3) {
+	function makeInstance(
+		scene: THREE.Scene,
+		geometry: any,
+		color: THREE.ColorRepresentation,
+		pos: THREE.Vector3,
+		rot: THREE.Euler
+	) {
 		const material = new THREE.MeshPhongMaterial({ color });
 
 		const object = new THREE.Mesh(geometry, material);
 		scene.add(object);
 
-		object.position.setX(pos.x);
-		object.position.setY(pos.y);
-		object.position.setZ(pos.z);
+		object.position.copy(pos);
+		object.rotation.copy(rot);
 
 		return object;
 	}

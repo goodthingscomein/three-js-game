@@ -25,12 +25,14 @@ type KeysPressed = {
 	A: boolean;
 	S: boolean;
 	D: boolean;
+	SPACE: boolean;
 };
 export const keysPressed = writable<KeysPressed>({
 	W: false,
 	A: false,
 	S: false,
 	D: false,
+	SPACE: false,
 });
 
 export const pointerLocked = writable<boolean>(false);
